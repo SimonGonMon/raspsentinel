@@ -47,13 +47,13 @@ prepare_source_dir() {
 sync_code() {
   local src_root="$1"
   log "Copiando archivos de la aplicación..."
-  rm -rf "$APP_DIR"
+  # Completely remove the old directory to avoid any cache or git issues
+  if [[ -d "$APP_DIR" ]]; then
+    rm -rf "$APP_DIR"
+  fi
   mkdir -p "$APP_DIR"
   rsync -a --delete --exclude ".git" "$src_root/" "$APP_DIR/"
   install -Dm644 "$APP_DIR/raspsentinel.service" "$SERVICE_UNIT"
-  # Clear any Python cache files
-  find "$APP_DIR" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-  find "$APP_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
 }
 
 create_user_and_paths() {
