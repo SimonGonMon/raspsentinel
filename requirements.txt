@@ -1,0 +1,4 @@
+python-telegram-bot==21.6
+PyYAML==6.0.2
+typer==0.12.5
+scapy==2.5.0

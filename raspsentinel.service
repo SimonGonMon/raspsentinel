@@ -1,0 +1,21 @@
+[Unit]
+Description=Raspsentinel WiFi Guard
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=raspsentinel
+Group=raspsentinel
+WorkingDirectory=/opt/raspsentinel
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/raspsentinel/venv/bin/python -m raspsentinel.main --config /etc/raspsentinel/config.yaml
+Restart=always
+RestartSec=5
+# Capacidades para arp-scan y nftables sin root completo
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

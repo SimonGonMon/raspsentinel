@@ -1,0 +1,13 @@
+telegram:
+  bot_token: "PON_AQUI_TU_TOKEN"
+  chat_id: 123456789  # tu chat o grupo
+network:
+  interface: "wlan0"
+  gateway_ip: "192.168.1.1"
+  scan_interval_sec: 60
+block:
+  enable: false
+  gateway_ip: "192.168.1.1"
+  arp_interval_sec: 2.0
+app:
+  data_dir: "/var/lib/raspsentinel"

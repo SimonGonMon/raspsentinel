@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_USER="raspsentinel"
+APP_DIR="/opt/raspsentinel"
+DATA_DIR="/var/lib/raspsentinel"
+CONF_DIR="/etc/raspsentinel"
+SERVICE_UNIT="/etc/systemd/system/raspsentinel.service"
+REPO_URL="${REPO_URL:-https://github.com/simongonmon/raspsentinel.git}"
+
+log() { printf '[raspsentinel] %s\n' "$*"; }
+
+require_root() {
+  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    echo "Este instalador necesita privilegios de root. Ejecuta con sudo." >&2
+    exit 1
+  fi
+}
+
+ensure_tools() {
+  if ! command -v apt-get >/dev/null 2>&1; then
+    echo "Se requiere apt-get para instalar dependencias del sistema." >&2
+    exit 1
+  fi
+  log "Instalando dependencias del sistema..."
+  apt-get update
+  apt-get install -y git python3 python3-venv python3-pip arp-scan
+}
+
+prepare_source_dir() {
+  local workdir
+  local repo_guard="raspsentinel/__init__.py"
+  if [[ -f "requirements.txt" && -f "$repo_guard" ]]; then
+    workdir="$(pwd)"
+  else
+    workdir="$(mktemp -d)"
+    trap 'rm -rf "'"$workdir"'"' EXIT
+    log "Clonando repositorio ${REPO_URL}..."
+    git clone --depth=1 "$REPO_URL" "$workdir/src"
+    workdir="$workdir/src"
+  fi
+  printf '%s\n' "$workdir"
+}
+
+sync_code() {
+  local src_root="$1"
+  log "Copiando archivos de la aplicación..."
+  rm -rf "$APP_DIR"
+  mkdir -p "$APP_DIR"
+  cp -r "$src_root/raspsentinel" "$APP_DIR/"
+  cp "$src_root/requirements.txt" "$APP_DIR/"
+  cp "$src_root/config.example.yaml" "$APP_DIR/"
+  install -Dm644 "$src_root/raspsentinel.service" "$SERVICE_UNIT"
+}
+
+create_user_and_paths() {
+  log "Creando usuario y directorios..."
+  id -u "$APP_USER" >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin "$APP_USER"
+  mkdir -p "$DATA_DIR" "$CONF_DIR"
+  chown -R "$APP_USER":"$APP_USER" "$DATA_DIR"
+}
+
+install_python_deps() {
+  log "Configurando entorno virtual..."
+  python3 -m venv "$APP_DIR/venv"
+  "$APP_DIR/venv/bin/pip" install --upgrade pip
+  "$APP_DIR/venv/bin/pip" install -r "$APP_DIR/requirements.txt"
+}
+
+ensure_config() {
+  if [[ ! -f "$CONF_DIR/config.yaml" ]]; then
+    log "Generando configuración inicial..."
+    cp "$APP_DIR/config.example.yaml" "$CONF_DIR/config.yaml"
+    chown "$APP_USER":"$APP_USER" "$CONF_DIR/config.yaml"
+    chmod 640 "$CONF_DIR/config.yaml"
+  fi
+}
+
+finalize_permissions() {
+  chown -R "$APP_USER":"$APP_USER" "$APP_DIR"
+  chmod 750 "$APP_DIR"
+  chown -R "$APP_USER":"$APP_USER" "$CONF_DIR" "$DATA_DIR"
+}
+
+deploy_cli_wrapper() {
+  log "Instalando comando raspsentinel..."
+  cat >/usr/local/bin/raspsentinel <<'EOF'
+#!/usr/bin/env bash
+exec /opt/raspsentinel/venv/bin/python -m raspsentinel.cli "$@"
+EOF
+  chmod +x /usr/local/bin/raspsentinel
+}
+
+enable_service() {
+  log "Habilitando servicio systemd..."
+  systemctl daemon-reload
+  systemctl enable raspsentinel.service >/dev/null 2>&1 || true
+}
+
+main() {
+  require_root
+  ensure_tools
+  local src_root
+  src_root="$(prepare_source_dir)"
+  sync_code "$src_root"
+  create_user_and_paths
+  install_python_deps
+  ensure_config
+  finalize_permissions
+  deploy_cli_wrapper
+  enable_service
+  log "Instalación completa. Ejecuta 'sudo raspsentinel setup' para terminar la configuración."
+}
+
+main "$@"
