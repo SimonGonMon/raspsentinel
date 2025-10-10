@@ -118,9 +118,6 @@ def status():
 
 @APP.command()
 def logs(
-    lines: int = typer.Option(
-        200, help="Número de líneas recientes a mostrar."
-    ),
     follow: bool = typer.Option(
         True,
         "--follow/--no-follow",
@@ -128,7 +125,7 @@ def logs(
     ),
 ):
     """Muestra los logs recientes."""
-    cmd = ["journalctl", "-u", "raspsentinel.service", "-n", str(lines)]
+    cmd = ["journalctl", "-u", "raspsentinel.service", "-n", "200"]
     if follow:
         cmd.append("-f")
     subprocess.call(cmd)
