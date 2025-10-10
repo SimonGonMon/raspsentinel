@@ -117,7 +117,16 @@ def status():
 
 
 @APP.command()
-def logs(lines: int = typer.Option(200, "--lines", "-n"), follow: bool = typer.Option(True, "--follow/--no-follow")):
+def logs(
+    lines: int = typer.Option(
+        200, "--lines", "-n", help="Número de líneas recientes a mostrar."
+    ),
+    follow: bool = typer.Option(
+        True,
+        "--follow",
+        help="Mantener la salida siguiendo nuevos eventos (usa --no-follow para desactivar).",
+    ),
+):
     """Muestra los logs recientes."""
     cmd = ["journalctl", "-u", "raspsentinel.service", "-n", str(lines)]
     if follow:
