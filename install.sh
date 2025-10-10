@@ -8,7 +8,7 @@ CONF_DIR="/etc/raspsentinel"
 SERVICE_UNIT="/etc/systemd/system/raspsentinel.service"
 REPO_URL="${REPO_URL:-https://github.com/simongonmon/raspsentinel.git}"
 
-log() { printf '[raspsentinel] %s\n' "$*"; }
+log() { printf '[raspsentinel] %s\n' "$*" >&2; }
 
 require_root() {
   if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
