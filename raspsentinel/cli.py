@@ -123,8 +123,8 @@ def logs(
     ),
     follow: bool = typer.Option(
         True,
-        "--follow",
-        help="Mantener la salida siguiendo nuevos eventos (usa --no-follow para desactivar).",
+        "--follow/--no-follow",
+        help="Mantener la salida siguiendo nuevos eventos.",
     ),
 ):
     """Muestra los logs recientes."""
