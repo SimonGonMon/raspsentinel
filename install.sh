@@ -7,6 +7,8 @@ DATA_DIR="/var/lib/raspsentinel"
 CONF_DIR="/etc/raspsentinel"
 SERVICE_UNIT="/etc/systemd/system/raspsentinel.service"
 REPO_URL="${REPO_URL:-https://github.com/SimonGonMon/raspsentinel.git}"
+SRC_ROOT=""
+TMP_SRC_DIR=""
 
 log() { printf '[raspsentinel] %s\n' "$*" >&2; }
 
@@ -24,23 +26,22 @@ ensure_tools() {
   fi
   log "Instalando dependencias del sistema..."
   apt-get update
-  apt-get install -y git python3 python3-venv python3-pip arp-scan
+  apt-get install -y git python3 python3-venv python3-pip arp-scan rsync
 }
 
 prepare_source_dir() {
-  local workdir
   local repo_guard="raspsentinel/__init__.py"
   if [[ -f "requirements.txt" && -f "$repo_guard" ]]; then
-    workdir="$(pwd)"
+    SRC_ROOT="$(pwd)"
+    TMP_SRC_DIR=""
   else
     local tmpdir
     tmpdir="$(mktemp -d)"
-    trap 'rm -rf "'"$tmpdir"'"' EXIT
     log "Clonando repositorio ${REPO_URL}..."
     git clone --depth=1 "$REPO_URL" "$tmpdir/src"
-    workdir="$tmpdir/src"
+    SRC_ROOT="$tmpdir/src"
+    TMP_SRC_DIR="$tmpdir"
   fi
-  printf '%s\n' "$workdir"
 }
 
 sync_code() {
@@ -96,18 +97,24 @@ enable_service() {
   systemctl enable raspsentinel.service >/dev/null 2>&1 || true
 }
 
+cleanup_tmp() {
+  if [[ -n "$TMP_SRC_DIR" && -d "$TMP_SRC_DIR" ]]; then
+    rm -rf "$TMP_SRC_DIR"
+  fi
+}
+
 main() {
   require_root
   ensure_tools
-  local src_root
-  src_root="$(prepare_source_dir)"
-  sync_code "$src_root"
+  prepare_source_dir
+  sync_code "$SRC_ROOT"
   create_user_and_paths
   install_python_deps
   ensure_config
   finalize_permissions
   deploy_cli_wrapper
   enable_service
+  cleanup_tmp
   log "Instalación completa. Ejecuta 'sudo raspsentinel setup' para terminar la configuración."
 }
 
