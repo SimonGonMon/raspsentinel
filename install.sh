@@ -51,6 +51,9 @@ sync_code() {
   mkdir -p "$APP_DIR"
   rsync -a --delete --exclude ".git" "$src_root/" "$APP_DIR/"
   install -Dm644 "$APP_DIR/raspsentinel.service" "$SERVICE_UNIT"
+  # Clear any Python cache files
+  find "$APP_DIR" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+  find "$APP_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
 }
 
 create_user_and_paths() {
