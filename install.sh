@@ -86,6 +86,7 @@ deploy_cli_wrapper() {
   log "Instalando comando raspsentinel..."
   cat >/usr/local/bin/raspsentinel <<'EOF'
 #!/usr/bin/env bash
+export PYTHONPATH="/opt/raspsentinel:${PYTHONPATH:-}"
 exec /opt/raspsentinel/venv/bin/python -m raspsentinel.cli "$@"
 EOF
   chmod +x /usr/local/bin/raspsentinel

@@ -73,7 +73,7 @@ Si habilitas el bloqueo, Raspsentinel envía respuestas ARP falsas al dispositiv
 
 - Raspberry Pi OS (Bookworm/Bullseye) o Debian/Ubuntu con `apt`.
 - Python 3.11+.
-- Paquetes: `git`, `python3-venv`, `python3-pip`, `arp-scan`.
+- Paquetes: `git`, `python3-venv`, `python3-pip`, `arp-scan`, `rsync`.
 - Conectividad a Internet durante la instalación (para clonar e instalar dependencias).
 
 ## Desinstalación
