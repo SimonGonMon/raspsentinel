@@ -65,7 +65,7 @@ install_python_deps() {
   python3 -m venv "$APP_DIR/venv"
   "$APP_DIR/venv/bin/pip" install --upgrade pip
   "$APP_DIR/venv/bin/pip" install -r "$APP_DIR/requirements.txt"
-  add_local_path
+  link_package_path
 }
 
 ensure_config() {
@@ -105,20 +105,20 @@ cleanup_tmp() {
   fi
 }
 
-add_local_path() {
+link_package_path() {
   local site_packages
   site_packages="$("$APP_DIR/venv/bin/python" - <<'PY'
-import sys
-from pathlib import Path
-for path in sys.path:
-    if path.endswith("site-packages"):
-        print(path)
-        break
+import sysconfig
+print(sysconfig.get_paths()["purelib"])
 PY
 )"
-  if [[ -n "$site_packages" && -d "$site_packages" ]]; then
-    echo "$APP_DIR" >"$site_packages/raspsentinel-local.pth"
+  if [[ -z "$site_packages" || ! -d "$site_packages" ]]; then
+    return
   fi
+  ln -sfn "$APP_DIR/raspsentinel" "$site_packages/raspsentinel"
+  cat >"$site_packages/raspsentinel-local.pth" <<EOF
+/opt/raspsentinel
+EOF
 }
 
 main() {
