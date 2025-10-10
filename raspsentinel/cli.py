@@ -3,14 +3,19 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-from typing import Any, Optional
+from typing import Any, Callable, List, Optional
 
 import typer
 import yaml
 
+from .store import Store
+
 app = typer.Typer(add_completion=False, help="Herramientas para instalar y operar Raspsentinel.")
-config_app = typer.Typer(add_completion=False, help="Operaciones sobre el archivo de configuración.")
+config_app = typer.Typer(add_completion=False, help="Operaciones sobre la configuración.")
+devices_app = typer.Typer(add_completion=False, help="Consulta y gestión de dispositivos.")
+
 app.add_typer(config_app, name="config")
+app.add_typer(devices_app, name="devices")
 
 CONF_PATH = "/etc/raspsentinel/config.yaml"
 SERVICE_NAME = "raspsentinel.service"
@@ -129,6 +134,119 @@ def logs(
     subprocess.call(cmd)
 
 
+@app.command()
+def allowlist(manage: bool = typer.Option(False, "--manage", "-m", help="Abrir asistente para quitar entradas.")) -> None:
+    """Muestra la allowlist y opcionalmente permite editarla."""
+    cfg = _load_config()
+    store = _store_from_config(cfg)
+    allow = _collect_devices(store, lambda d: d.get("allow"))
+    if not allow:
+        typer.echo("Allowlist vacía.")
+        return
+    _print_table(allow, title="Allowlist actual")
+    if manage:
+        _interactive_toggle(store, allow, action="unallow")
+
+
+@app.command()
+def blocklist(manage: bool = typer.Option(False, "--manage", "-m", help="Abrir asistente para desbloquear dispositivos.")) -> None:
+    """Muestra la blocklist y permite desbloquear dispositivos."""
+    cfg = _load_config()
+    store = _store_from_config(cfg)
+    blocked = _collect_devices(store, lambda d: d.get("block"))
+    if not blocked:
+        typer.echo("Blocklist vacía.")
+        return
+    _print_table(blocked, title="Blocklist actual")
+    if manage:
+        _interactive_toggle(store, blocked, action="unblock")
+
+
+@devices_app.command("list")
+def devices_list(
+    status: str = typer.Option("all", "--status", "-s", help="Filtro: all|allow|block|new"),
+) -> None:
+    """Lista los dispositivos vistos con filtros sencillos."""
+    cfg = _load_config()
+    store = _store_from_config(cfg)
+    devices = store.list_devices()
+    rows = []
+    status = status.lower()
+    for mac, info in devices.items():
+        status_flag = _device_status(info)
+        if status != "all" and status_flag.lower() != status:
+            continue
+        rows.append(
+            {
+                "mac": mac,
+                "status": status_flag,
+                "ip": info.get("ip") or "?",
+                "name": info.get("name") or "—",
+                "vendor": info.get("vendor") or "?",
+            }
+        )
+    if not rows:
+        typer.echo("Sin resultados.")
+        return
+    _print_table(rows, title="Dispositivos")
+
+
+@devices_app.command("info")
+def devices_info(mac: str) -> None:
+    """Muestra la ficha completa de un dispositivo."""
+    cfg = _load_config()
+    store = _store_from_config(cfg)
+    mac = mac.upper()
+    device = store.list_devices().get(mac)
+    if not device:
+        typer.echo(f"No se encontraron datos para {mac}")
+        raise typer.Exit(code=1)
+    typer.echo(f"MAC:    {mac}")
+    typer.echo(f"Nombre: {device.get('name') or '—'}")
+    typer.echo(f"Estado: {_device_status(device)}")
+    typer.echo(f"IP:     {device.get('ip') or '?'}")
+    typer.echo(f"Vendor: {device.get('vendor') or '?'}")
+    typer.echo(f"Primer visto: {device.get('first_seen')}")
+    typer.echo(f"Último visto: {device.get('last_seen')}")
+    if notes := device.get("notes"):
+        typer.echo(f"Notas:  {notes}")
+
+
+@devices_app.command("allow")
+def devices_allow(mac: str, name: Optional[str] = typer.Option(None, "--name", "-n", help="Nombre opcional.")) -> None:
+    """Añade un dispositivo a la allowlist."""
+    cfg = _load_config()
+    store = _store_from_config(cfg)
+    store.mark_allow(mac, name)
+    typer.echo(f"{mac.upper()} añadido a allowlist.")
+
+
+@devices_app.command("block")
+def devices_block(mac: str, notes: Optional[str] = typer.Option(None, "--notes", "-n", help="Motivo/nota opcional.")) -> None:
+    """Añade un dispositivo a la blocklist."""
+    cfg = _load_config()
+    store = _store_from_config(cfg)
+    store.mark_block(mac, notes)
+    typer.echo(f"{mac.upper()} añadido a blocklist.")
+
+
+@devices_app.command("unblock")
+def devices_unblock(mac: str) -> None:
+    """Quita un dispositivo de la blocklist."""
+    cfg = _load_config()
+    store = _store_from_config(cfg)
+    store.unblock(mac)
+    typer.echo(f"{mac.upper()} desbloqueado.")
+
+
+@devices_app.command("name")
+def devices_name(mac: str, name: str) -> None:
+    """Asignar o actualizar el nombre amigable."""
+    cfg = _load_config()
+    store = _store_from_config(cfg)
+    store.set_name(mac, name)
+    typer.echo(f"{mac.upper()} ahora se llama '{name}'.")
+
 @config_app.command("show")
 def config_show(
     yaml_output: bool = typer.Option(False, "--yaml", help="Imprimir la configuración en YAML."),
@@ -184,6 +302,77 @@ def _load_config() -> dict[str, Any]:
 def _save_config(data: dict[str, Any]) -> None:
     with open(CONF_PATH, "w", encoding="utf-8") as fh:
         yaml.safe_dump(data, fh, sort_keys=False)
+
+
+def _store_from_config(cfg: dict[str, Any]) -> Store:
+    data_dir = cfg.get("app", {}).get("data_dir", "/var/lib/raspsentinel")
+    return Store(data_dir)
+
+
+def _collect_devices(store: Store, predicate: Callable[[dict[str, Any]], bool]) -> List[dict[str, Any]]:
+    devices = store.list_devices()
+    rows: List[dict[str, Any]] = []
+    for mac, info in sorted(devices.items()):
+        if predicate(info):
+            rows.append(
+                {
+                    "mac": mac,
+                    "ip": info.get("ip") or "?",
+                    "name": info.get("name") or "—",
+                    "vendor": info.get("vendor") or "?",
+                    "status": _device_status(info),
+                }
+            )
+    return rows
+
+
+def _print_table(rows: List[dict[str, Any]], title: str) -> None:
+    typer.echo(f"\n{title}")
+    typer.echo("-" * len(title))
+    for idx, row in enumerate(rows, start=1):
+        typer.echo(
+            f"{idx:>2}. {row['mac']} [{row['status']}]  IP {row['ip']}  "
+            f"{row['name']}  {row['vendor']}"
+        )
+
+
+def _interactive_toggle(store: Store, rows: List[dict[str, Any]], action: str) -> None:
+    actions = {
+        "unblock": store.unblock,
+        "unallow": store.unallow,
+    }
+    action_fn = actions.get(action)
+    if action_fn is None:
+        return
+    label = "desbloquear" if action == "unblock" else "quitar de allowlist"
+    while rows:
+        typer.echo("\nIntroduce el número a " + label + " (ENTER para salir).")
+        choice = typer.prompt("Número", default="")
+        if not choice.strip():
+            break
+        try:
+            idx = int(choice)
+        except ValueError:
+            typer.echo("Introduce un número válido.")
+            continue
+        if idx < 1 or idx > len(rows):
+            typer.echo("Fuera de rango.")
+            continue
+        mac = rows.pop(idx - 1)["mac"]
+        action_fn(mac)
+        typer.echo(f"{mac} actualizado.")
+        if rows:
+            _print_table(rows, "Estado actualizado")
+        else:
+            typer.echo("No quedan entradas.")
+
+
+def _device_status(data: dict[str, Any]) -> str:
+    if data.get("block"):
+        return "BLOCK"
+    if data.get("allow"):
+        return "ALLOW"
+    return "NEW"
 
 
 def _prompt_int(message: str, default: Optional[int] = None) -> int:

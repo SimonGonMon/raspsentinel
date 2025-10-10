@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -37,6 +38,7 @@ class TelegramBot:
         self.app.add_handler(CommandHandler("rm_allow", self._rm_allow))
         self.app.add_handler(CommandHandler("add_block", self._add_block))
         self.app.add_handler(CommandHandler("rm_block", self._rm_block))
+        self.app.add_handler(CommandHandler("device", self._device))
         self.app.add_handler(CallbackQueryHandler(self._buttons))
 
     async def run(self):
@@ -81,28 +83,14 @@ class TelegramBot:
     async def _allowlist(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not await self._authorized(update):
             return await self._reject(update)
-        devs = self.store.list_devices()
-        lines = [
-            f"{m}  {d.get('name') or '—'}"
-            for m, d in sorted(devs.items())
-            if d.get("allow")
-        ]
-        await update.message.reply_text(
-            "Allowlist:\n" + ("\n".join(lines) or "vacía")
-        )
+        text, markup = self._render_allowlist()
+        await update.message.reply_text(text, reply_markup=markup)
 
     async def _blocklist(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not await self._authorized(update):
             return await self._reject(update)
-        devs = self.store.list_devices()
-        lines = [
-            f"{m}  {d.get('name') or '—'}"
-            for m, d in sorted(devs.items())
-            if d.get("block")
-        ]
-        await update.message.reply_text(
-            "Blocklist:\n" + ("\n".join(lines) or "vacía")
-        )
+        text, markup = self._render_blocklist()
+        await update.message.reply_text(text, reply_markup=markup)
 
     async def _add_allow(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not await self._authorized(update):
@@ -145,6 +133,18 @@ class TelegramBot:
         if self.block_remove_cb:
             await self.block_remove_cb(mac)
 
+    async def _device(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        if not await self._authorized(update):
+            return await self._reject(update)
+        if not ctx.args:
+            return await update.message.reply_text("Uso: /device <MAC>")
+        mac = ctx.args[0].upper()
+        device = self.store.list_devices().get(mac)
+        if not device:
+            return await update.message.reply_text(f"No hay información para {mac}")
+        text = self._format_device_card(mac, device)
+        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+
     async def _buttons(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         q = update.callback_query
         await q.answer()
@@ -168,6 +168,17 @@ class TelegramBot:
             text, markup = self._handle_connected_callback(data)
             if text:
                 await q.edit_message_text(text=text, reply_markup=markup)
+        elif data.startswith("UNBLOCK|"):
+            mac = data.split("|", 1)[1]
+            self.store.unblock(mac)
+            if self.block_remove_cb:
+                await self.block_remove_cb(mac)
+            text, markup = self._render_blocklist()
+            try:
+                await q.edit_message_text(text=text, reply_markup=markup)
+            except BadRequest:
+                await q.message.reply_text(text=text, reply_markup=markup)
+
 
     async def notify_new(self, device: Dict[str, Any]):
         mac = device.get("mac")
@@ -191,6 +202,64 @@ class TelegramBot:
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=kb,
         )
+
+    def _render_allowlist(self) -> Tuple[str, Optional[InlineKeyboardMarkup]]:
+        devs = self.store.list_devices()
+        allow = [
+            (m, d) for m, d in sorted(devs.items()) if d.get("allow")
+        ]
+        if not allow:
+            return ("Allowlist vacía.", None)
+        lines = [
+            f"{mac}  {(info.get('name') or '—')}  {(info.get('vendor') or '?')}"
+            for mac, info in allow
+        ]
+        return ("Allowlist:\n" + "\n".join(lines), None)
+
+    def _render_blocklist(self) -> Tuple[str, Optional[InlineKeyboardMarkup]]:
+        devs = self.store.list_devices()
+        blocked = [
+            (m, d) for m, d in sorted(devs.items()) if d.get("block")
+        ]
+        if not blocked:
+            return ("Blocklist vacía.", None)
+        lines = []
+        buttons: List[List[InlineKeyboardButton]] = []
+        limit = 25
+        for idx, (mac, info) in enumerate(blocked):
+            if idx < limit:
+                display_name = info.get("name") or mac
+                vendor = info.get("vendor") or "?"
+                lines.append(f"{mac}  {display_name}  {vendor}")
+                short = display_name if len(display_name) <= 18 else display_name[:15] + "…"
+                buttons.append(
+                    [InlineKeyboardButton(f"Desbloquear {short}", callback_data=f"UNBLOCK|{mac}")]
+                )
+            else:
+                break
+        if len(blocked) > limit:
+            lines.append(f"... ({len(blocked) - limit} más)")
+        markup = InlineKeyboardMarkup(buttons) if buttons else None
+        return ("Blocklist:\n" + "\n".join(lines), markup)
+
+    def _format_device_card(self, mac: str, data: Dict[str, Any]) -> str:
+        status = self._status_for_device(data)
+        name = data.get("name") or "—"
+        ip = data.get("ip") or "?"
+        vendor = data.get("vendor") or "?"
+        first_seen = data.get("first_seen") or "?"
+        last_seen = data.get("last_seen") or "?"
+        lines = [
+            f"*{mac}* ({status})",
+            f"Nombre: {name}",
+            f"IP: `{ip}`",
+            f"Vendor: _{vendor}_",
+            f"Primera vez: {first_seen}",
+            f"Visto por última vez: {last_seen}",
+        ]
+        if notes := data.get("notes"):
+            lines.append(f"Notas: {notes}")
+        return "\n".join(lines)
 
     def _handle_connected_callback(
         self, data: str

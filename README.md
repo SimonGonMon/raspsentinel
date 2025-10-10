@@ -43,17 +43,22 @@ La configuración se guarda en `/etc/raspsentinel/config.yaml`.
 - `sudo raspsentinel start|stop|restart` – controla el servicio.
 - `sudo raspsentinel enable|disable` – gestiona el arranque automático.
 - `sudo raspsentinel status` – estado del servicio.
-- `sudo raspsentinel logs -n 100 --no-follow` – muestra logs sin seguir.
-- `sudo raspsentinel config show|get|set|wizard` – opciones avanzadas.
+- `sudo raspsentinel logs -n 100 --follow` – logs recientes (añade `--follow` para streaming).
+- `sudo raspsentinel allowlist --manage` – consulta y quita entradas de la allowlist.
+- `sudo raspsentinel blocklist --manage` – muestra la blocklist y permite desbloquear en modo interactivo.
+- `sudo raspsentinel devices list --status allow|block|new` – lista dispositivos vistos (usa `devices info <MAC>` para ver ficha, `devices block|allow|unblock` para gestionarlos).
+- `sudo raspsentinel config show|get|set|wizard` – opciones avanzadas sobre el archivo `config.yaml`.
 
 ## Uso del bot
 
 Comandos disponibles (solo para el `chat_id` autorizado):
 
 - `/connected` – lista de dispositivos vistos recientemente con paginación (5 por página) y botón de refresco.
-- `/allowlist` / `/blocklist` – listas actuales.
+- `/allowlist` – lista actual de permitidos.
+- `/blocklist` – lista actual con botones para desbloquear desde Telegram.
 - `/add_allow <MAC> [nombre]` / `/rm_allow <MAC>`.
 - `/add_block <MAC> [motivo]` / `/rm_block <MAC>`.
+- `/device <MAC>` – ficha resumida de un dispositivo (estado, IP, vendor, notas).
 - `/settings` – muestra la ubicación del archivo de config.
 - `/id` – devuelve tu `chat_id` actual.
 
