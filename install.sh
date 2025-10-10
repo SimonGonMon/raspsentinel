@@ -33,11 +33,12 @@ prepare_source_dir() {
   if [[ -f "requirements.txt" && -f "$repo_guard" ]]; then
     workdir="$(pwd)"
   else
-    workdir="$(mktemp -d)"
-    trap 'rm -rf "'"$workdir"'"' EXIT
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmpdir"'"' EXIT
     log "Clonando repositorio ${REPO_URL}..."
-    git clone --depth=1 "$REPO_URL" "$workdir/src"
-    workdir="$workdir/src"
+    git clone --depth=1 "$REPO_URL" "$tmpdir/src"
+    workdir="$tmpdir/src"
   fi
   printf '%s\n' "$workdir"
 }
