@@ -4,6 +4,7 @@ import re
 from typing import Dict, List
 
 from .utils import has_cmd, run
+from .vendors import VENDOR_LOOKUP
 
 
 ARP_RE = re.compile(r"^(?P<ip>\d+\.\d+\.\d+\.\d+)\s+(?P<mac>[0-9a-f:]{17})\s+(?P<vendor>.+)$", re.I)
@@ -26,7 +27,11 @@ class Scanner:
         for line in out.splitlines():
             m = ARP_RE.match(line.strip())
             if m:
-                res.append({"ip": m.group("ip"), "mac": m.group("mac").upper(), "vendor": m.group("vendor").strip()})
+                ip = m.group("ip")
+                mac = m.group("mac").upper()
+                vendor = m.group("vendor").strip()
+                vendor = self._normalize_vendor(mac, vendor)
+                res.append({"ip": ip, "mac": mac, "vendor": vendor})
         return res
 
     def _scan_ip_neigh(self) -> List[Dict[str, str]]:
@@ -35,5 +40,16 @@ class Scanner:
         for line in out.splitlines():
             m = IPN_RE.match(line.strip())
             if m:
-                res.append({"ip": m.group("ip"), "mac": m.group("mac").upper(), "vendor": None})
+                ip = m.group("ip")
+                mac = m.group("mac").upper()
+                vendor = self._normalize_vendor(mac, None)
+                res.append({"ip": ip, "mac": mac, "vendor": vendor})
         return res
+
+    @staticmethod
+    def _normalize_vendor(mac: str, vendor: str | None) -> str | None:
+        if vendor:
+            text = vendor.strip()
+            if text and text.lower() not in {"unknown", "(unknown)"}:
+                return text
+        return VENDOR_LOOKUP.lookup(mac)
