@@ -6,7 +6,7 @@ APP_DIR="/opt/raspsentinel"
 DATA_DIR="/var/lib/raspsentinel"
 CONF_DIR="/etc/raspsentinel"
 SERVICE_UNIT="/etc/systemd/system/raspsentinel.service"
-REPO_URL="${REPO_URL:-https://github.com/simongonmon/raspsentinel.git}"
+REPO_URL="${REPO_URL:-https://github.com/SimonGonMon/raspsentinel.git}"
 
 log() { printf '[raspsentinel] %s\n' "$*" >&2; }
 
@@ -48,10 +48,8 @@ sync_code() {
   log "Copiando archivos de la aplicación..."
   rm -rf "$APP_DIR"
   mkdir -p "$APP_DIR"
-  cp -r "$src_root/raspsentinel" "$APP_DIR/"
-  cp "$src_root/requirements.txt" "$APP_DIR/"
-  cp "$src_root/config.example.yaml" "$APP_DIR/"
-  install -Dm644 "$src_root/raspsentinel.service" "$SERVICE_UNIT"
+  rsync -a --delete --exclude ".git" "$src_root/" "$APP_DIR/"
+  install -Dm644 "$APP_DIR/raspsentinel.service" "$SERVICE_UNIT"
 }
 
 create_user_and_paths() {

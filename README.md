@@ -7,7 +7,7 @@ Raspsentinel vigila tu red local, notifica por Telegram cuando aparece un dispos
 Ejecuta en tu Raspberry Pi (requiere sudo). El script instala dependencias, despliega la app en `/opt/raspsentinel` y registra el servicio.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/simongonmon/raspsentinel/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/SimonGonMon/raspsentinel/main/install.sh | sudo bash
 ```
 
 > Usa la variable `REPO_URL` si quieres instalar desde un fork:  
