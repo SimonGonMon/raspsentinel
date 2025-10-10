@@ -119,7 +119,7 @@ def status():
 @APP.command()
 def logs(
     lines: int = typer.Option(
-        200, "--lines", help="Número de líneas recientes a mostrar."
+        200, help="Número de líneas recientes a mostrar."
     ),
     follow: bool = typer.Option(
         True,
