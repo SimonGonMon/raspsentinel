@@ -20,6 +20,31 @@ app.add_typer(devices_app, name="devices")
 
 CONF_PATH = "/etc/raspsentinel/config.yaml"
 SERVICE_NAME = "raspsentinel.service"
+COMMAND_OVERVIEW = """Comandos principales:
+  setup                   Asistente interactivo de configuración.
+  start                   Inicia el servicio systemd.
+  stop                    Detiene el servicio systemd.
+  restart                 Reinicia el servicio.
+  enable                  Habilita el inicio automático en systemd.
+  disable                 Deshabilita el inicio automático en systemd.
+  status                  Muestra el estado del servicio.
+  logs [--lines N]        Muestra los logs recientes (usar --follow para seguir).
+  allowlist [--manage]    Lista dispositivos permitidos y permite editarlos.
+  blocklist [--manage]    Lista dispositivos bloqueados y permite editarlos.
+  devices list            Lista dispositivos vistos (usar -s para filtrar).
+  devices info MAC        Muestra detalles de un dispositivo.
+  devices allow MAC       Añade un dispositivo a la allowlist.
+  devices block MAC       Añade un dispositivo a la blocklist.
+  devices unblock MAC     Quita un dispositivo de la blocklist.
+  devices name MAC NAME   Asigna un nombre amigable.
+  config show             Muestra la configuración actual.
+  config get CLAVE        Obtiene una clave (ej. network.interface).
+  config set CLAVE VALOR  Actualiza una clave.
+  config wizard           Repite el asistente interactivo.
+
+Ejemplo:
+  sudo raspsentinel setup
+"""
 
 
 @app.command()
@@ -469,13 +494,9 @@ def _list_interfaces() -> list[str]:
 
 if __name__ == "__main__":
     if os.geteuid() != 0:
-        typer.echo("Este comando requiere privilegios de superusuario. Ejecuta 'sudo raspsentinel --help'.")
+        typer.echo("Este comando requiere privilegios de superusuario. Ejecuta 'sudo raspsentinel'.")
         raise SystemExit(1)
     if len(sys.argv) == 1:
-        app(
-            args=["--help"],
-            prog_name="raspsentinel",
-            standalone_mode=False,
-        )
+        typer.echo(COMMAND_OVERVIEW.rstrip())
         raise SystemExit(0)
     app()
