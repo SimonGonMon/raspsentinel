@@ -10,11 +10,7 @@ import yaml
 
 from .store import Store
 
-app = typer.Typer(
-    add_completion=False,
-    help="Herramientas para instalar y operar Raspsentinel.",
-    context_settings={"help_option_names": ["--help", "-h"]},
-)
+app = typer.Typer(add_completion=False, help="Herramientas para instalar y operar Raspsentinel.")
 config_app = typer.Typer(add_completion=False, help="Operaciones sobre la configuración.")
 devices_app = typer.Typer(add_completion=False, help="Consulta y gestión de dispositivos.")
 
