@@ -10,7 +10,11 @@ import yaml
 
 from .store import Store
 
-app = typer.Typer(add_completion=False, help="Herramientas para instalar y operar Raspsentinel.")
+app = typer.Typer(
+    add_completion=False,
+    help="Herramientas para instalar y operar Raspsentinel.",
+    context_settings={"help_option_names": []},
+)
 config_app = typer.Typer(add_completion=False, help="Operaciones sobre la configuración.")
 devices_app = typer.Typer(add_completion=False, help="Consulta y gestión de dispositivos.")
 
@@ -19,6 +23,28 @@ app.add_typer(devices_app, name="devices")
 
 CONF_PATH = "/etc/raspsentinel/config.yaml"
 SERVICE_NAME = "raspsentinel.service"
+
+
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
+    help_flag: bool = typer.Option(
+        False,
+        "--help",
+        "-h",
+        is_eager=True,
+        help="Muestra esta ayuda y termina.",
+    ),
+) -> None:
+    if help_flag:
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
+    if os.geteuid() != 0:
+        typer.echo("Este comando requiere privilegios de superusuario. Ejecuta 'sudo raspsentinel --help'.")
+        raise typer.Exit(code=1)
+    if ctx.invoked_subcommand is None:
+        typer.echo("Sugerencia: usa 'sudo raspsentinel --help' para ver los comandos disponibles.")
+        raise typer.Exit()
 
 
 @app.command()
