@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import subprocess
 from typing import Any, Callable, List, Optional
 
@@ -21,16 +22,13 @@ CONF_PATH = "/etc/raspsentinel/config.yaml"
 SERVICE_NAME = "raspsentinel.service"
 
 
-@app.callback(invoke_without_command=True)
-def main(ctx: typer.Context) -> None:
-    if ctx.resilient_parsing:
-        return
+def _preflight(argv: List[str]) -> None:
     if os.geteuid() != 0:
         typer.echo("Este comando requiere privilegios de superusuario. Ejecuta 'sudo raspsentinel --help'.")
-        raise typer.Exit(code=1)
-    if ctx.invoked_subcommand is None and not ctx.args:
+        raise SystemExit(1)
+    if len(argv) == 1:
         typer.echo("Sugerencia: usa 'sudo raspsentinel --help' para ver los comandos disponibles.")
-        raise typer.Exit()
+        raise SystemExit(0)
 
 
 @app.command()
@@ -479,4 +477,5 @@ def _list_interfaces() -> list[str]:
 
 
 if __name__ == "__main__":
+    _preflight(sys.argv)
     app()
