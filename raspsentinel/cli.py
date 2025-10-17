@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import subprocess
+import sys
 from typing import Any, Callable, List, Optional
 
 import typer
@@ -20,15 +20,6 @@ app.add_typer(devices_app, name="devices")
 
 CONF_PATH = "/etc/raspsentinel/config.yaml"
 SERVICE_NAME = "raspsentinel.service"
-
-
-def _preflight(argv: List[str]) -> None:
-    if os.geteuid() != 0:
-        typer.echo("Este comando requiere privilegios de superusuario. Ejecuta 'sudo raspsentinel --help'.")
-        raise SystemExit(1)
-    if len(argv) == 1:
-        typer.echo("Sugerencia: usa 'sudo raspsentinel --help' para ver los comandos disponibles.")
-        raise SystemExit(0)
 
 
 @app.command()
@@ -477,5 +468,14 @@ def _list_interfaces() -> list[str]:
 
 
 if __name__ == "__main__":
-    _preflight(sys.argv)
+    if os.geteuid() != 0:
+        typer.echo("Este comando requiere privilegios de superusuario. Ejecuta 'sudo raspsentinel --help'.")
+        raise SystemExit(1)
+    if len(sys.argv) == 1:
+        app(
+            args=["--help"],
+            prog_name="raspsentinel",
+            standalone_mode=False,
+        )
+        raise SystemExit(0)
     app()
